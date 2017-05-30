@@ -1,6 +1,6 @@
-import config
 import telebot
 import os
+import config
 from flask import Flask, request
 
 bot = telebot.TeleBot(config.token)
@@ -8,11 +8,14 @@ server = Flask(__name__)
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, 'Hello, ' + message.from_user.first_name)
+	bot.send_message(message.chat.id, message.text)
+
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def echo_message(message):
-    bot.reply_to(message, message.text)
+    bot.send_message(message.chat.id, message.text)
+
+
 
 @server.route("/bot", methods=['POST'])
 def getMessage():
@@ -22,8 +25,8 @@ def getMessage():
 @server.route("/")
 def webhook():
     bot.remove_webhook()
-    bot.set_webhook(url="https://mgppu.herokuapp.com/")
+    bot.set_webhook(url="https://mgppu.herokuapp.com/bot")
     return "!", 200
 
-if __name__ == '__main__':
-	server.run(host="0.0.0.0", port=os.environ.get('PORT', 5000))
+server.run(host="0.0.0.0", port=os.environ.get('PORT', 5000))
+server = Flask(__name__)

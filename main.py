@@ -90,8 +90,8 @@ def parse_tomorrow(table):
 	if isEven(): 
 		table = table.worksheet('Четная')
 	else: table = table.worksheet('Нечетная')
-	tomorrow = (datetime.now() + timedelta(days=1)).isoweekday()  # СЕГОДНЯ
-	da_tomorrow = None    							 # ЗАВТРА
+	tomorrow = (datetime.now() + timedelta(days=1)).isoweekday()  # ЗАВТРА
+	da_tomorrow = None    							 # ПОСЛЕЗАВТРА
 	stud_days = [val for val in table.col_values(1) if val]
 	if tomorrow == 7: return 'Пляши, завтра выходной!' # _f = table.find('1') 
 	elif tomorrow == 6:

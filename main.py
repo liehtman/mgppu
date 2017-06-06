@@ -17,7 +17,6 @@ scope = ['https://spreadsheets.google.com/feeds']
 credentials = ServiceAccountCredentials.from_json_keyfile_name(config.json_keyfile, scope)
 gc = gspread.authorize(credentials)
 base = gc.open("Студенты").sheet1
-session = gc.open("Сессия")
 logs = gc.open("Логи МГППУ").sheet1
 
 @bot.message_handler(commands=['start'])
@@ -47,7 +46,6 @@ def get_id(message):
 def get_id(message):
 	bot.send_message(message.chat.id, 'Помощи нет.')
 
-
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def reply_course(message):
 
@@ -63,7 +61,9 @@ def reply_course(message):
 
 	elif message.text in config.ses_queries:  	 # СЕССИЯ
 		bot.send_message(message.chat.id, 'Подожди, смотрю...')
-		answer = parse_session(message.text)
+		course_num, specialization = get_stud_info(message)
+		table_name = 'Сессия {0} {1}'.format(course_num, specialization)
+		answer = parse_session(gc.open(table_name), message.text)
 		bot.send_message(message.chat.id, answer)
 
 	elif message.text in config.courses:  		 # ВЫБОР КУРСА
@@ -126,14 +126,14 @@ def parse_tomorrow(table):
 		msg += string
 	return msg
 
-def parse_session(query):
+def parse_session(table, query):
 	msg = ''
 	values = []
 	row_vals = True
 	i = 2
 	if query == 'Зачеты':
 		while row_vals:
-			row_vals = session.worksheet('Зачеты').row_values(i)
+			row_vals = table.worksheet('Зачеты').row_values(i)
 			row_vals = [val for val in row_vals if val]
 			values.append(row_vals)
 			i += 1
@@ -142,7 +142,7 @@ def parse_session(query):
 			msg += '{0}){1} {2} в {3}\n'.format(i+1, val[0], val[1], val[2])
 	elif query == 'Экзамены':
 		while row_vals:
-			row_vals = session.worksheet('Экзамены').row_values(i)
+			row_vals = table.worksheet('Экзамены').row_values(i)
 			row_vals = [val for val in row_vals if val]
 			values.append(row_vals)
 			i += 1
@@ -151,7 +151,7 @@ def parse_session(query):
 			msg += '{0}){1} {2} в {3}\n'.format(i+1, val[0], val[1], val[2])		
 	elif query == 'Консультации':
 		while row_vals:
-			row_vals = session.worksheet('Экзамены').row_values(i)
+			row_vals = table.worksheet('Экзамены').row_values(i)
 			row_vals = [val for val in row_vals if val]
 			values.append(row_vals)
 			i += 1
@@ -261,7 +261,6 @@ def check_updates():
 				if stud.course == course and stud.spec == spec:
 					bot.send_message(stud.id, 'В расписании что-то поменялось.')
 	threading.Timer(3600, check_updates).start()
-
 
 check_updates()
 server.run(host="0.0.0.0", port=os.environ.get('PORT', 5000))

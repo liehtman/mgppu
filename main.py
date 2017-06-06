@@ -2,11 +2,15 @@ import telebot
 import os
 import config
 import gspread
+import time, threading
 from oauth2client.service_account import ServiceAccountCredentials
 from flask import Flask, request
 from datetime import datetime, date, timedelta
+from datetime import time as d_time
 from telebot import types
+from student import Student
 
+# \xF0\x9F\x94\x99 - back emoji
 bot = telebot.TeleBot(config.token)
 server = Flask(__name__)
 scope = ['https://spreadsheets.google.com/feeds']
@@ -39,6 +43,10 @@ def showlogs(message):
 @bot.message_handler(commands=['getid'])
 def get_id(message):
 	bot.send_message(message.chat.id, str(message.chat.id))
+@bot.message_handler(commands=['help'])
+def get_id(message):
+	bot.send_message(message.chat.id, 'Помощи нет.')
+
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def reply_course(message):
@@ -47,8 +55,11 @@ def reply_course(message):
 		course_num, specialization = get_stud_info(message)
 		table_name = course_num + ' курс ' + specialization
 		bot.send_message(message.chat.id, 'Подожди, смотрю...')
-		answer = parse_tomorrow(gc.open(table_name))
-		bot.send_message(message.chat.id, answer)
+		try:
+			answer = parse_tomorrow(gc.open(table_name))
+			bot.send_message(message.chat.id, answer)
+		except:
+			bot.send_message(message.chat.id, 'Упс... Что-то пошло не так:(')
 
 	elif message.text in config.ses_queries:  	 # СЕССИЯ
 		bot.send_message(message.chat.id, 'Подожди, смотрю...')
@@ -67,10 +78,13 @@ def reply_course(message):
 		set_stud_spec(message)
 		course_num, specialization = get_stud_info(message)
 		table_name = course_num + ' курс ' + specialization
-		markup = types.ReplyKeyboardMarkup()
+		markup = types.ReplyKeyboardMarkup(resize_keyboard = True)#resize_keyboard = True
 		for query in config.main_queries: markup.add(query)
+		# markup.add(b'\xF0\x9F\x94\x99')
+		markup.add('Назад')
 		bot.send_message(message.chat.id, 'Что хочешь знать?', reply_markup = markup)
-	
+	elif message.text == 'Назад':
+		start(message)
 	else: bot.send_message(message.chat.id, 'Юзай кнопки!')
 	
 	if message.chat.id != config.creator_id: track(message)
@@ -87,19 +101,17 @@ def webhook():
 	return "!", 200		
 
 def parse_tomorrow(table):
-	if isEven(): 
-		table = table.worksheet('Четная')
+	if isEven(): table = table.worksheet('Четная')
 	else: table = table.worksheet('Нечетная')
-	tomorrow = (datetime.now() + timedelta(days=1)).isoweekday()  # ЗАВТРА
-	da_tomorrow = None    							 # ПОСЛЕЗАВТРА
+	tomorrow = (datetime.now() + timedelta(days=1)).isoweekday()  	# ЗАВТРА
+	da_tomorrow = None    							 				# ПОСЛЕЗАВТРА
 	stud_days = [val for val in table.col_values(1) if val]
-	if tomorrow == 7: return 'Пляши, завтра выходной!' # _f = table.find('1') 
+	if tomorrow == 7: return 'Пляши, завтра выходной!'
 	elif tomorrow == 6:
 		if '6' not in stud_days:
 			return 'Пляши, завтра выходной!'
 		else: da_tomorrow = table.find('EOW')
-	else:
-		da_tomorrow = table.find(str(tomorrow + 1))
+	else: da_tomorrow = table.find(str(tomorrow + 1))
 	cell_num = table.find(str(tomorrow))
 	values_list = []
 	msg = 'Итак, завтра у тебя:\n'
@@ -154,10 +166,8 @@ def isEven(today = date.today() + timedelta(days=1), first = config.first_date):
 	first = date(int(first[0]), int(first[1]), int(first[2]))
 	cc = today - first
 	dd = str(cc).split()[0]
-	if round(int(dd)/7) % 2 == 0:
-		return False # четная
-	else:
-		return True  # нечетная
+	if round(int(dd)/7) % 2 == 0: return False  # четная
+	else: return True  							# нечетная
 
 def track(message):
 	time = datetime.now().replace(microsecond=0)
@@ -219,7 +229,6 @@ def set_stud_spec(message):
 		ind = id_list.index(str(message.chat.id)) + 2
 		base.update_acell('C'+str(ind), message.text.lower())
 
-
 def get_stud_info(message):
 	id_list = [val for val in base.col_values(1) if val][1:]
 	ind = id_list.index(str(message.chat.id)) + 2
@@ -227,6 +236,33 @@ def get_stud_info(message):
 	spec = base.acell('C'+str(ind)).value
 	return course, spec
 
+def get_students_array():
+	studs = []
+	IDs = [val for val in base.col_values(1) if val]
+	courses = [val for val in base.col_values(2) if val]
+	specs = [val for val in base.col_values(3) if val]
+	for i in range(len(IDs)):
+		studs.append(Student(IDs[i], courses[i], specs[i]))
+	return studs
+
+def check_updates():
+	tables = [gc.open(name) for name in config.tables]
+	now = datetime.now()
+	count = d_time(1, 0)
+	count = datetime.combine(date.min, count) - datetime.min
+	for table in tables:
+		upd = table.updated
+		upd = datetime.strptime(upd, '%Y-%m-%dT%H:%M:%S.%fZ') + timedelta(hours=3)
+		if (now - upd) < count:
+			name = table.title.split(' ')
+			course, spec = name[0], name[2]
+			studs = get_students_array()
+			for stud in studs:
+				if stud.course == course and stud.spec == spec:
+					bot.send_message(stud.id, 'В расписании что-то поменялось.')
+	threading.Timer(3600, check_updates).start()
+
+
+check_updates()
 server.run(host="0.0.0.0", port=os.environ.get('PORT', 5000))
 server = Flask(__name__)
-# bot.pooling(non_stop=True)

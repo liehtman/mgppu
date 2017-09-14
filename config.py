@@ -1,6 +1,6 @@
-token = '388189206:AAF04nlbXm_cHj5qi7Lp2sGK2mtG2Aa68Y0'
+token = '********************************'
 json_keyfile = 'mgppu-2a64f00b3024.json'
-creator_id = 52392630
+creator_id = ********
 main_queries = [
 				'Расписание на завтра', 'Расписание на сегодня', 
 				'Четная неделя', 'Нечетная неделя', 

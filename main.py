@@ -72,13 +72,7 @@ def help(message):
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def main_reply(message):
 	if message.text=='Расписание на завтра':
-		# bot.send_message(message.chat.id, 'Уже не актуально. Лето:)')
 		course_num, specialization = get_stud_info(message)
-		# ------------------------------------------------- #
-		if course_num != '3' or specialization != 'математики':
-			bot.send_message(message.chat.id, 'Расписание для твоей группы пока не забили')
-			return 0
-		# ------------------------------------------------- #
 		table_name = course_num + ' курс ' + specialization
 		bot.send_message(message.chat.id, 'Подожди, смотрю...')
 		try:
@@ -89,11 +83,6 @@ def main_reply(message):
 
 	elif message.text == 'Расписание на сегодня':
 		course_num, specialization = get_stud_info(message)
-		# ------------------------------------------------- #
-		if course_num != '3' or specialization != 'математики':
-			bot.send_message(message.chat.id, 'Расписание для твоей группы пока не забили')
-			return 0
-		# ------------------------------------------------- #
 		table_name = course_num + ' курс ' + specialization
 		bot.send_message(message.chat.id, 'Подожди, смотрю...')
 		try:
@@ -204,17 +193,30 @@ def parse(table, start, end):
 		t = table.range('B'+str(i)+':F'+str(i))
 		values_list.append([elem.value for elem in t])
 	for i, vals in enumerate(values_list):
-		if vals[1][-1] == 'а':
-			vals[1] = list(vals[1])
-			vals[1][-1] = 'ой'
-			vals[1] = ''.join(vals[1])
-		else: 
-			vals[1] = list(vals[1])
-			vals[1].append('а')
-			vals[1] = ''.join(vals[1])
+		if ',' in vals[1]:
+			vals[1] = vals[1].split(',')
+			vals[1][0] = decline_name(vals[1][0])
+			vals[1][1] = decline_name(vals[1][1])
+			vals[1] = vals[1][0] + '/' + vals[1][1][1:]
+		else: vals[1] = decline_name(vals[1])
 		string = '{0})_{1}_ у {2} в аудитории *{3}* в *{4}* ({5}) \n'.format(i+1, vals[0], vals[1], vals[2], vals[4], vals[3])
 		msg += string
 	return msg
+
+def decline_name(name):
+	if name[-1] == 'а':
+		name = list(name)
+		name[-1] = 'ой'
+		name = ''.join(name)
+	elif name[-1] == 'й':
+		name = list(name[:-2])
+		name[-1] = 'ого'
+		name = ''.join(name)
+	else: 
+		name = list(name)
+		name.append('а')
+		name = ''.join(name)
+	return name
 
 def parse_any_day(table, day):
 	stud_days = [val for val in table.col_values(1) if val]
@@ -295,7 +297,7 @@ def parse_session(table, query):
 def search_lecturer(name):
 	tables = [gc.open(table) for table in config.tables]
 	days, places, times = [], [], []
-	d = {
+	D = {
 			'1':'понедельник',
 			'2':'вторник',
 			'3':'среда',
@@ -321,19 +323,21 @@ def search_lecturer(name):
 		for sheet in table.worksheets():
 			try:
 				cells = sheet.findall(name)
-				for cell in cells:
+				for i, cell in enumerate(cells):
 					days.append(find_day(sheet, cell))
 					times.append(find_time(sheet, cell))
 					places.append(find_place(sheet, cell))
 			except: continue
 	if days == [] or times == []:
 		return 'Что-то я не могу найти этого преподавателя :('
+	T = set(list(zip(places, times, days)))
+	T = sorted(T, key=lambda x: x[2])
 	msg = ''
-	for i, day in enumerate(days):
-		if 'even' in day:
-			msg += '{0} бывает в аудитории *{1}* в *{2}* в {3} на четной неделе.\n'.format(name, places[i], times[i], d[str(day[0])])
-		elif 'odd' in day:
-			msg += '{0} бывает в аудитории *{1}* в *{2}* в {3} на нечетной неделе.\n'.format(name, places[i], times[i], d[str(day[0])])
+	for tup in T:
+		if 'even' in tup[2]:
+			msg += '{0} бывает в аудитории *{1}* в *{2}* в {3} на четной неделе.\n'.format(name, tup[0], tup[1], D[str(tup[2][0])])
+		elif 'odd' in tup[2]:
+			msg += '{0} бывает в аудитории *{1}* в *{2}* в {3} на нечетной неделе.\n'.format(name, tup[0], tup[1], D[str(tup[2][0])])
 	return msg
 
 def isEven(today = date.today() + timedelta(days=1), first = config.first_date):
@@ -379,7 +383,7 @@ def get_students_array():
 def get_users_id():
 	return [val for val in base.col_values(1)[1:] if val]
 
-def check_updates(): # ----- TODO: fix this --------
+def check_updates():
 	tables = [gc.open(name) for name in config.tables]
 	now = datetime.now()
 	count = datetime.combine(date.min, d_time(1, 0)) - datetime.min

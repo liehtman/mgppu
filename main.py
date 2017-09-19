@@ -18,22 +18,27 @@ gc = gspread.authorize(credentials)
 base = gc.open("Студенты").sheet1
 logs = gc.open("Логи МГППУ").sheet1
 
-@bot.message_handler(commands=['announce'])
-def announce(message):
-	if message.chat.id == config.creator_id:
-		msg = 'Привет! У меня появились новые функции!'
-		try: update_news(msg)
-		except: bot.send_message(config.creator_id, 'Что-то пошло не так')
-		finally: bot.send_message(config.creator_id, 'Оповещения отправлены')
-	else: bot.send_message(message.chat.id, 'Эта функция не для Вас, уважаемый:)')
-
 @bot.message_handler(commands=['start'])
 def start(message):
 	set_id(message)
 	markup = types.ReplyKeyboardMarkup()
-	for course in config.courses: markup.add(course)
+	if message.chat.id not in config.privileged_id:
+		for course in config.courses:
+			markup.add(course)
+	else:
+		for group in config.tables:
+			markup.add(group) 
 	bot.send_message(message.chat.id, "Привет. Выбери свой курс", reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
+
+@bot.message_handler(commands=['announce'])
+def announce(message):
+	if message.chat.id == config.creator_id:
+		msg = 'Привет! Появилось расписание для всех групп!'
+		try: update_news(msg)
+		except: bot.send_message(config.creator_id, 'Что-то пошло не так')
+		finally: bot.send_message(config.creator_id, 'Оповещения отправлены')
+	else: bot.send_message(message.chat.id, 'Эта функция не для Вас, уважаемый:)')
 
 @bot.message_handler(commands=['iseven'])
 def even_or_odd(message):
@@ -52,8 +57,8 @@ def cleanlogs(message):
 @bot.message_handler(commands=['showlogs'])
 def showlogs(message):
 	if message.chat.id == config.creator_id:
-		logs = get_logs() 
-		if logs: bot.send_message(message.chat.id, logs)
+		log = get_logs() 
+		if log: bot.send_message(message.chat.id, log)
 		else: bot.send_message(message.chat.id, 'Логи пусты')
 	else: 
 		bot.send_message(message.chat.id, 'Эта функция не для Вас, уважаемый:)')
@@ -330,6 +335,7 @@ def search_lecturer(name):
 			except: continue
 	if days == [] or times == []:
 		return 'Что-то я не могу найти этого преподавателя :('
+
 	T = set(list(zip(places, times, days)))
 	T = sorted(T, key=lambda x: x[2])
 	msg = ''
@@ -439,6 +445,17 @@ def update_news(msg):
 		time.sleep(1)
 		try: bot.send_message(int(user), msg)
 		except: bot.send_message(config.creator_id, user + ' не получил уведомление')
+
+def privileged_announce(course, spec, message):
+	students = [st for st in get_students_array() if st.spec == spec and st.course == course]
+	for student in students:
+		time.sleep(1)
+		try:
+			bot.send_message(int(student.id), message.text)
+		except:
+			bot.send_message(message.chat.id, student.id + ' не получил уведомление')
+		finally:
+			bot.send_message(message.chat.id, 'Уведомления отправлены')
 
 @server.route("/bot", methods=['POST'])
 def getMessage():

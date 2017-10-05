@@ -19,7 +19,8 @@ base = gc.open("Студенты").sheet1
 logs = gc.open("Логи МГППУ").sheet1
 
 @bot.message_handler(commands=['announce'])
-def announce(message, ad = 'Привет! У меня появились новые функции.'):
+def announce(message):
+	ad = 'Привет. Теперь я знаю расписание для всех групп. Расскажи друзьям!:)'
 	if message.chat.id == config.creator_id:
 		try: update_news(ad)
 		except: bot.send_message(config.creator_id, 'Что-то пошло не так')
@@ -30,9 +31,9 @@ def announce(message, ad = 'Привет! У меня появились нов�
 
 @bot.message_handler(commands=['iseven'])
 def even_or_odd(message):
+	if message.chat.id != config.creator_id: track(message)
 	if isEven(): bot.send_message(message.chat.id, 'Сегодня *четная* неделя', parse_mode = "Markdown")
 	else: bot.send_message(message.chat.id, 'Сегодня *нечетная* неделя', parse_mode = "Markdown")
-	if message.chat.id != config.creator_id: track(message)		
 
 @bot.message_handler(commands=['cleanlogs'])
 def cleanlogs(message):
@@ -50,18 +51,18 @@ def showlogs(message):
 		if log: bot.send_message(message.chat.id, log, parse_mode = "Markdown")
 		else: bot.send_message(message.chat.id, 'Логи пусты')
 	else:
-		bot.send_message(message.chat.id, 'Эта функция только для разработчика.')
 		track(message)
+		bot.send_message(message.chat.id, 'Эта функция только для разработчика.')
 
 @bot.message_handler(commands=['getid'])
 def get_id(message):
-	bot.send_message(message.chat.id, str(message.chat.id))
 	if message.chat.id != config.creator_id: track(message)
+	bot.send_message(message.chat.id, str(message.chat.id))
 
 @bot.message_handler(commands=['help'])
 def help(message):
-	bot.send_message(message.chat.id, 'Помощи нет.')
 	if message.chat.id != config.creator_id: track(message)
+	bot.send_message(message.chat.id, 'Помощи нет.')
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -70,6 +71,7 @@ def start(message):
 	if message.chat.id not in config.privileged_id:
 		for course in config.courses:
 			markup.add(course)
+		markup.add('Магистратура')
 		msg = bot.send_message(message.chat.id, "Привет. Выбери свой курс", reply_markup = markup)
 		bot.register_next_step_handler(msg, process_course_pick)
 	else:
@@ -78,26 +80,38 @@ def start(message):
 	if message.chat.id != config.creator_id: track(message)
 
 def process_course_pick(message):
-	set_stud_course(message)
-	course_num, specialization = get_stud_info(message)
-	table_name = course_num + ' курс ' + specialization
 	markup = types.ReplyKeyboardMarkup()
-	for spec in config.specializations: markup.add(spec)
-	msg = bot.send_message(message.chat.id, 'Выбери направление', reply_markup = markup)		
+	if message.text == 'Магистратура':
+		markup.add('1 курс')
+		markup.add('2 курс')
+		set_stud_spec(message)
+		msg = bot.send_message(message.chat.id, 'Выбери курс', reply_markup = markup)
+	else:
+		set_stud_course(message)
+		course_num, specialization = get_stud_info(message)
+		# table_name = course_num + ' курс ' + specialization
+		for spec in config.specializations: markup.add(spec)
+		msg = bot.send_message(message.chat.id, 'Выбери направление', reply_markup = markup)		
 	bot.register_next_step_handler(msg, process_spec_pick)
 
 def process_spec_pick(message):
-	set_stud_spec(message)
-	course_num, specialization = get_stud_info(message)
-	table_name = course_num + ' курс ' + specialization
 	markup = types.ReplyKeyboardMarkup(resize_keyboard = True)
 	markup.row(config.main_queries[0], config.main_queries[1])
-	markup.row(config.main_queries[2], config.main_queries[3])
+	if message.text == '1 курс' or message.text == '2 курс':
+		set_stud_course(message)
+		markup.row('Неделя')
+	else:
+		set_stud_spec(message) 
+		markup.row(config.main_queries[2], config.main_queries[3])
 	markup.row(config.main_queries[4])
 	markup.row(config.main_queries[5])
 	markup.row(config.main_queries[6])
+
+	course_num, specialization = get_stud_info(message)
+	# table_name = course_num + ' курс ' + specialization
 	markup.row('Назад')
 	bot.send_message(message.chat.id, 'Что хочешь знать?', reply_markup = markup)
+
 
 @bot.message_handler(func=lambda message: message.chat.id in config.privileged_id and message.text == 'Сделать рассылку...', content_types=['text'])
 def do_spam(message):
@@ -114,27 +128,27 @@ def privileged_announce(message):
 	course, spec = int(splitted_mes[0]), splitted_mes[2]
 	msg = bot.send_message(message.chat.id, "Введите сообщение, которое нужно разослать")
 
-	if course == 4 and spec == 'математики': bot.register_next_step_handler(msg, announce_4_mat)
+	if   course == 4 and spec == 'математики':  bot.register_next_step_handler(msg, announce_4_mat)
 	elif course == 4 and spec == 'информатики': bot.register_next_step_handler(msg, announce_4_inf)
-	elif course == 4 and spec == 'режиссеры': bot.register_next_step_handler(msg, announce_4_prod)
-	elif course == 3 and spec == 'математики': bot.register_next_step_handler(msg, announce_3_mat)
+	elif course == 4 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_4_prod)
+	elif course == 3 and spec == 'математики':  bot.register_next_step_handler(msg, announce_3_mat)
 	elif course == 3 and spec == 'информатики': bot.register_next_step_handler(msg, announce_3_inf)
-	elif course == 3 and spec == 'режиссеры': bot.register_next_step_handler(msg, announce_3_prod)
-	elif course == 2 and spec == 'математики': bot.register_next_step_handler(msg, announce_2_mat)
+	elif course == 3 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_3_prod)
+	elif course == 2 and spec == 'математики':  bot.register_next_step_handler(msg, announce_2_mat)
 	elif course == 2 and spec == 'информатики': bot.register_next_step_handler(msg, announce_2_inf)
-	elif course == 2 and spec == 'режиссеры': bot.register_next_step_handler(msg, announce_2_prod)
-	elif course == 1 and spec == 'математики': bot.register_next_step_handler(msg, announce_1_mat)
+	elif course == 2 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_2_prod)
+	elif course == 1 and spec == 'математики':  bot.register_next_step_handler(msg, announce_1_mat)
 	elif course == 1 and spec == 'информатики': bot.register_next_step_handler(msg, announce_1_inf)
-	elif course == 1 and spec == 'режиссеры': bot.register_next_step_handler(msg, announce_1_prod)
+	elif course == 1 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_1_prod)
 
-	announce_1_inf = lambda message: sample_announce(message, 1, 'информатики')
-	announce_2_inf = lambda message: sample_announce(message, 2, 'информатики')
-	announce_3_inf = lambda message: sample_announce(message, 3, 'информатики')
-	announce_4_inf = lambda message: sample_announce(message, 4, 'информатики')
-	announce_1_mat = lambda message: sample_announce(message, 1, 'математики')
-	announce_2_mat = lambda message: sample_announce(message, 2, 'математики')
-	announce_3_mat = lambda message: sample_announce(message, 3, 'математики')
-	announce_4_mat = lambda message: sample_announce(message, 4, 'математики')
+	announce_1_inf  = lambda message: sample_announce(message, 1, 'информатики')
+	announce_2_inf  = lambda message: sample_announce(message, 2, 'информатики')
+	announce_3_inf  = lambda message: sample_announce(message, 3, 'информатики')
+	announce_4_inf  = lambda message: sample_announce(message, 4, 'информатики')
+	announce_1_mat  = lambda message: sample_announce(message, 1, 'математики')
+	announce_2_mat  = lambda message: sample_announce(message, 2, 'математики')
+	announce_3_mat  = lambda message: sample_announce(message, 3, 'математики')
+	announce_4_mat  = lambda message: sample_announce(message, 4, 'математики')
 	announce_1_prod = lambda message: sample_announce(message, 1, 'режиссеры')
 	announce_2_prod = lambda message: sample_announce(message, 2, 'режиссеры')
 	announce_3_prod = lambda message: sample_announce(message, 3, 'режиссеры')
@@ -170,8 +184,10 @@ def schedule_tomorrow(message):
 	if message.chat.id != config.creator_id: track(message)
 
 def parse_tomorrow(table):
-	if isEven(): table = table.worksheet('Четная')
-	else: table = table.worksheet('Нечетная')
+	try:
+		if isEven(): table = table.worksheet('Четная')
+		else: table = table.worksheet('Нечетная')
+	except: table = table.sheet1
 	tomorrow = str((datetime.now() + timedelta(days=1)).isoweekday())  	# ЗАВТРА
 	da_tomorrow = None    							 				# ПОСЛЕЗАВТРА
 	stud_days = [val for val in table.col_values(1) if val]
@@ -194,8 +210,10 @@ def schedule_today(message):
 	if message.chat.id != config.creator_id: track(message)
 
 def parse_today(table):
-	if isEven(): table = table.worksheet('Четная')
-	else: table = table.worksheet('Нечетная')
+	try:
+		if isEven(): table = table.worksheet('Четная')
+		else: table = table.worksheet('Нечетная')
+	except: table = table.sheet1
 	today = str(datetime.now().isoweekday()) # Сегодня
 	tomorrow = None
 	stud_days = [val for val in table.col_values(1) if val]
@@ -212,12 +230,8 @@ def back(message):
 @bot.message_handler(func=lambda message: message.text=='Четная неделя', content_types=['text'])
 def even_week(message):
 	markup = types.ReplyKeyboardMarkup(resize_keyboard = True)
-	markup.row(config.days_even[0])
-	markup.row(config.days_even[1])
-	markup.row(config.days_even[2])
-	markup.row(config.days_even[3])
-	markup.row(config.days_even[4])
-	markup.row(config.days_even[5])
+	for day in config.days_even:
+		markup.row(day)
 	markup.row('В меню')
 	msg = bot.send_message(message.chat.id, 'Выбери день', reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
@@ -226,14 +240,35 @@ def even_week(message):
 @bot.message_handler(func=lambda message: message.text=='Нечетная неделя', content_types=['text'])
 def odd_week(message):
 	markup = types.ReplyKeyboardMarkup(resize_keyboard = True)
-	markup.row(config.days_odd[0])
-	markup.row(config.days_odd[1])
-	markup.row(config.days_odd[2])
-	markup.row(config.days_odd[3])
-	markup.row(config.days_odd[4])
-	markup.row(config.days_odd[5])
+	for day in config.days_odd:
+		markup.row(day)
 	markup.row('В меню')
 	msg = bot.send_message(message.chat.id, 'Выбери день', reply_markup = markup)
+	if message.chat.id != config.creator_id: track(message)
+
+
+@bot.message_handler(func=lambda message: message.text == 'Неделя', content_types=['text'])
+def any_day(message):
+	markup = types.ReplyKeyboardMarkup(resize_keyboard = True)
+	for day in config.days:
+		markup.row(day)
+	markup.row('В меню')
+	msg = bot.send_message(message.chat.id, 'Выбери день', reply_markup = markup)
+	if message.chat.id != config.creator_id: track(message)
+
+
+@bot.message_handler(func=lambda message: message.text in config.days, content_types=['text'])
+def days(message):
+	bot.send_message(message.chat.id, 'Подожди, смотрю...')
+	msg = ''
+	course_num, specialization = get_stud_info(message)
+	table_name = course_num + ' курс ' + specialization
+	day_name = message.text.split(' ')[0]
+	parsing_result = parse_any_day(gc.open(table_name).sheet1, day_name)
+	if parsing_result != 'Это выходной':
+		msg = 'Расписание на {0}:\n'.format(day_name.lower())
+	msg += parsing_result
+	bot.send_message(message.chat.id, msg, parse_mode = "Markdown")
 	if message.chat.id != config.creator_id: track(message)
 
 @bot.message_handler(func=lambda message: message.text in config.days_odd, content_types=['text'])
@@ -331,12 +366,13 @@ def get_individual_days(string):
 def decline_name(name):
 	if name[-1] == 'а': name = name[:-1] + 'ой'
 	elif name[-1] == 'й': name = name[:-2] + 'ого'
+	elif name[-1] == 'ь': name = name[:-1] + 'я'
 	else: name += 'а'
 	return name
 
 @bot.message_handler(func=lambda message: message.text == 'Найти преподавателя', content_types=['text'])
 def find_lecturer(message):
-	msg = bot.send_message(message.chat.id, 'Введи его фамилию')
+	msg = bot.send_message(message.chat.id, 'Введи его фамилию с большой буквы')
 	if message.chat.id != config.creator_id: track(message)
 	bot.register_next_step_handler(msg, search_lecturer)
 
@@ -394,7 +430,9 @@ def to_menu(message):
 	table_name = course_num + ' курс ' + specialization
 	markup = types.ReplyKeyboardMarkup(resize_keyboard = True)
 	markup.row(config.main_queries[0], config.main_queries[1])
-	markup.row(config.main_queries[2], config.main_queries[3])
+	if specialization != 'магистратура':
+		markup.row(config.main_queries[2], config.main_queries[3])
+	else: markup.row('Неделя')
 	markup.row(config.main_queries[4])
 	markup.row(config.main_queries[5])
 	markup.row(config.main_queries[6])
@@ -428,8 +466,9 @@ def session_query(message):
 def whats_week(message):
 	even_or_odd(message)
 
-@bot.message_handler(func=lambda message: True, content_types=['text'])
+@bot.message_handler(func=lambda message: True, content_types = ['text'])
 def default(message):
+	# bot.send_message(message.chat.id, 'Используй кнопки')  # TODO: всегда срабатывает
 	if message.chat.id != config.creator_id: track(message)
 
 def parse_session(table, query):
@@ -471,6 +510,7 @@ def set_id(message):
 	if str(message.chat.id) not in id_list:
 		ind = len(id_list) + 2
 		base.update_acell('A'+str(ind), message.chat.id)
+		base.update_acell('D'+str(ind), message.chat.first_name +' '.join(message.chat.last_name))
 
 def set_stud_course(message):
 	id_list = [val for val in base.col_values(1) if val][1:]

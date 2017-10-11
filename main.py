@@ -3,6 +3,7 @@ import telebot
 import config
 import gspread
 import time, threading
+
 from flask import Flask, request
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, date, timedelta
@@ -89,7 +90,6 @@ def process_course_pick(message):
 	else:
 		set_stud_course(message)
 		course_num, specialization = get_stud_info(message)
-		# table_name = course_num + ' курс ' + specialization
 		for spec in config.specializations: markup.add(spec)
 		msg = bot.send_message(message.chat.id, 'Выбери направление', reply_markup = markup)		
 	bot.register_next_step_handler(msg, process_spec_pick)
@@ -106,10 +106,9 @@ def process_spec_pick(message):
 	markup.row(config.main_queries[4])
 	markup.row(config.main_queries[5])
 	markup.row(config.main_queries[6])
+	markup.row('Назад')
 
 	course_num, specialization = get_stud_info(message)
-	# table_name = course_num + ' курс ' + specialization
-	markup.row('Назад')
 	bot.send_message(message.chat.id, 'Что хочешь знать?', reply_markup = markup)
 
 
@@ -367,6 +366,7 @@ def decline_name(name):
 	if name[-1] == 'а': name = name[:-1] + 'ой'
 	elif name[-1] == 'й': name = name[:-2] + 'ого'
 	elif name[-1] == 'ь': name = name[:-1] + 'я'
+	elif name[-1] == 'о': name = name
 	else: name += 'а'
 	return name
 

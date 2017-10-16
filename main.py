@@ -147,6 +147,7 @@ def privileged_announce(message):
 		msg = bot.send_message(message.chat.id, "Введите сообщение, которое нужно разослать")
 		splitted_mes = message.text.split()
 		course, spec = int(splitted_mes[0]), splitted_mes[2]
+
 		if   course == 4 and spec == 'математики':  bot.register_next_step_handler(msg, announce_4_mat)
 		elif course == 4 and spec == 'информатики': bot.register_next_step_handler(msg, announce_4_inf)
 		elif course == 4 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_4_prod)
@@ -172,7 +173,6 @@ def announce_all(message):
 	bot.send_message(message.chat.id, 'Уведомления отправлены')
 
 def sample_announce(message, course, spec):
-	print('HERE!!!!!!!!!!!!!!')
 	bot.send_message(message.chat.id, 'Начинаю рассылку...')
 	students = [st for st in get_students_array() if st.course == str(course) and st.spec == spec]
 	msg = '*Внимание, сообщение от деканата:*\n\n' + message.text

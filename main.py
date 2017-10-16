@@ -21,9 +21,9 @@ logs = gc.open("Логи МГППУ").sheet1
 
 @bot.message_handler(commands=['announce'])
 def announce(message):
-	ad = 'Привет. Теперь я знаю расписание для всех групп. Расскажи друзьям!:)'
+	ad = 'Привет. Меня переводят на новвый хостинг и в ближайшее время возможным сбои. Обещаю, скоро все наладится:)'
 	if message.chat.id == config.creator_id:
-		try: update_news(ad)
+		try: announce_all(ad)
 		except: bot.send_message(config.creator_id, 'Что-то пошло не так')
 		finally: bot.send_message(config.creator_id, 'Оповещения отправлены')
 	else:
@@ -69,16 +69,13 @@ def help(message):
 def start(message):
 	set_id(message)
 	markup = types.ReplyKeyboardMarkup()
-	if message.chat.id not in config.privileged_id:
-		for course in config.courses:
-			markup.add(course)
-		markup.add('Магистратура')
-		msg = bot.send_message(message.chat.id, "Привет. Выбери свой курс", reply_markup = markup)
-		bot.register_next_step_handler(msg, process_course_pick)
-	else:
-		markup.add('Сделать рассылку...')
-		bot.send_message(message.chat.id, 'Здравствуйте!', reply_markup = markup)
+	for course in config.courses:
+		markup.add(course)
+	markup.add('Магистратура')
+	msg = bot.send_message(message.chat.id, "Привет. Выбери свой курс", reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
+	bot.send_message(config.creator_id, '{0} {1} started'.format(message.chat.first_name, message.chat.last_name))
+	bot.register_next_step_handler(msg, process_course_pick)
 
 def process_course_pick(message):
 	markup = types.ReplyKeyboardMarkup()
@@ -107,67 +104,90 @@ def process_spec_pick(message):
 	markup.row(config.main_queries[5])
 	markup.row(config.main_queries[6])
 	markup.row('Назад')
+	if message.chat.id in config.privileged_id:
+		markup.row('Сделать рассылку...')
 
-	course_num, specialization = get_stud_info(message)
 	bot.send_message(message.chat.id, 'Что хочешь знать?', reply_markup = markup)
-
 
 @bot.message_handler(func=lambda message: message.chat.id in config.privileged_id and message.text == 'Сделать рассылку...', content_types=['text'])
 def do_spam(message):
+	""" Когда входим в эту функцию, человек уже кликнул Сделать рассылку """
 	markup = types.ReplyKeyboardMarkup()
 	for table in config.tables:
 		markup.add(table)
-	markup.add('Назад')
+	markup.add('Разослать всем')
+	markup.add('В меню')
 	msg = bot.send_message(message.chat.id, 'Выберите группу', reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
 	bot.register_next_step_handler(msg, privileged_announce)
 
 def privileged_announce(message):
-	splitted_mes = message.text.split()
-	course, spec = int(splitted_mes[0]), splitted_mes[2]
-	msg = bot.send_message(message.chat.id, "Введите сообщение, которое нужно разослать")
+	""" Когда входим в эту функцию, человек уже клинкул группу """
+	if message.text == 'Разослать всем':
+		msg = bot.send_message(message.chat.id, "Введите сообщение, которое нужно разослать")
+		bot.register_next_step_handler(msg, announce_all)
+	elif message.text == 'В меню':
+		pass
+	else:	
+		announce_4_mat  = lambda message: sample_announce(message, 4, 'математики')
+		announce_4_inf  = lambda message: sample_announce(message, 4, 'информатики')
+		announce_4_prod = lambda message: sample_announce(message, 4, 'режиссеры')
+		announce_3_mat  = lambda message: sample_announce(message, 3, 'математики')	
+		announce_3_inf  = lambda message: sample_announce(message, 3, 'информатики')
+		announce_3_prod = lambda message: sample_announce(message, 3, 'режиссеры')
+		announce_2_mat  = lambda message: sample_announce(message, 2, 'математики')
+		announce_2_inf  = lambda message: sample_announce(message, 2, 'информатики')
+		announce_2_prod = lambda message: sample_announce(message, 2, 'режиссеры')
+		announce_1_mat  = lambda message: sample_announce(message, 1, 'математики')
+		announce_1_inf  = lambda message: sample_announce(message, 1, 'информатики')
+		announce_1_prod = lambda message: sample_announce(message, 1, 'режиссеры')
+		announce_1_mag  = lambda message: sample_announce(message, 1, 'магистратура')
+		announce_2_mag  = lambda message: sample_announce(message, 2, 'магистратура')
 
-	if   course == 4 and spec == 'математики':  bot.register_next_step_handler(msg, announce_4_mat)
-	elif course == 4 and spec == 'информатики': bot.register_next_step_handler(msg, announce_4_inf)
-	elif course == 4 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_4_prod)
-	elif course == 3 and spec == 'математики':  bot.register_next_step_handler(msg, announce_3_mat)
-	elif course == 3 and spec == 'информатики': bot.register_next_step_handler(msg, announce_3_inf)
-	elif course == 3 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_3_prod)
-	elif course == 2 and spec == 'математики':  bot.register_next_step_handler(msg, announce_2_mat)
-	elif course == 2 and spec == 'информатики': bot.register_next_step_handler(msg, announce_2_inf)
-	elif course == 2 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_2_prod)
-	elif course == 1 and spec == 'математики':  bot.register_next_step_handler(msg, announce_1_mat)
-	elif course == 1 and spec == 'информатики': bot.register_next_step_handler(msg, announce_1_inf)
-	elif course == 1 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_1_prod)
+		msg = bot.send_message(message.chat.id, "Введите сообщение, которое нужно разослать")
+		splitted_mes = message.text.split()
+		course, spec = int(splitted_mes[0]), splitted_mes[2]
+		if   course == 4 and spec == 'математики':  bot.register_next_step_handler(msg, announce_4_mat)
+		elif course == 4 and spec == 'информатики': bot.register_next_step_handler(msg, announce_4_inf)
+		elif course == 4 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_4_prod)
+		elif course == 3 and spec == 'математики':  bot.register_next_step_handler(msg, announce_3_mat)
+		elif course == 3 and spec == 'информатики': bot.register_next_step_handler(msg, announce_3_inf)
+		elif course == 3 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_3_prod)
+		elif course == 2 and spec == 'математики':  bot.register_next_step_handler(msg, announce_2_mat)
+		elif course == 2 and spec == 'информатики': bot.register_next_step_handler(msg, announce_2_inf)
+		elif course == 2 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_2_prod)
+		elif course == 1 and spec == 'математики':  bot.register_next_step_handler(msg, announce_1_mat)
+		elif course == 1 and spec == 'информатики': bot.register_next_step_handler(msg, announce_1_inf)
+		elif course == 1 and spec == 'режиссеры':   bot.register_next_step_handler(msg, announce_1_prod)
+		elif course == 1 and spec == 'магистратура': bot.register_next_step_handler(msg, announce_1_mag)
+		elif course == 2 and spec == 'магистратура': bot.register_next_step_handler(msg, announce_2_mag)
 
-	announce_1_inf  = lambda message: sample_announce(message, 1, 'информатики')
-	announce_2_inf  = lambda message: sample_announce(message, 2, 'информатики')
-	announce_3_inf  = lambda message: sample_announce(message, 3, 'информатики')
-	announce_4_inf  = lambda message: sample_announce(message, 4, 'информатики')
-	announce_1_mat  = lambda message: sample_announce(message, 1, 'математики')
-	announce_2_mat  = lambda message: sample_announce(message, 2, 'математики')
-	announce_3_mat  = lambda message: sample_announce(message, 3, 'математики')
-	announce_4_mat  = lambda message: sample_announce(message, 4, 'математики')
-	announce_1_prod = lambda message: sample_announce(message, 1, 'режиссеры')
-	announce_2_prod = lambda message: sample_announce(message, 2, 'режиссеры')
-	announce_3_prod = lambda message: sample_announce(message, 3, 'режиссеры')
-	announce_4_prod = lambda message: sample_announce(message, 4, 'режиссеры')
+def announce_all(message):
+	msg = '*Внимание, сообщение Сверху:*\n\n' + message.text
+	users = get_users_id()
+	for user in users:
+		time.sleep(1)
+		try: bot.send_message(int(user), msg, parse_mode = "Markdown")
+		except: bot.send_message(message.chat.id, user + ' не получил уведомление')
+	bot.send_message(message.chat.id, 'Уведомления отправлены')
 
 def sample_announce(message, course, spec):
+	print('HERE!!!!!!!!!!!!!!')
 	bot.send_message(message.chat.id, 'Начинаю рассылку...')
 	students = [st for st in get_students_array() if st.course == str(course) and st.spec == spec]
 	msg = '*Внимание, сообщение от деканата:*\n\n' + message.text
 	for student in students:
 		time.sleep(1)
 		try: bot.send_message(int(student.id), msg, parse_mode = "Markdown")
-		except: bot.send_message(message.chat.id, '{0} не получил уведомление'.format(student.id))
+		except: bot.send_message(message.chat.id, '[{0}]{1} не получил уведомление'.format(student.id, student.name))
 	bot.send_message(message.chat.id, 'Уведомления отправлены')
 
 def get_students_array():
 	IDs = [val for val in base.col_values(1) if val]
 	courses = [val for val in base.col_values(2)]
 	specs = [val for val in base.col_values(3)]
-	studs = [Student(IDs[i], courses[i], specs[i]) for i in range(len(IDs))]
+	names = [val for val in base.col_values(4)]
+	studs = [Student(IDs[i], courses[i], specs[i], names[i]) for i in range(len(IDs))]
 	return studs
 
 @bot.message_handler(func=lambda message: message.text == 'Расписание на завтра', content_types=['text'])
@@ -183,10 +203,10 @@ def schedule_tomorrow(message):
 	if message.chat.id != config.creator_id: track(message)
 
 def parse_tomorrow(table):
-	try:
+	if len(table.worksheets()) != 1:
 		if isEven(): table = table.worksheet('Четная')
 		else: table = table.worksheet('Нечетная')
-	except: table = table.sheet1
+	else: table = table.sheet1
 	tomorrow = str((datetime.now() + timedelta(days=1)).isoweekday())  	# ЗАВТРА
 	da_tomorrow = None    							 				# ПОСЛЕЗАВТРА
 	stud_days = [val for val in table.col_values(1) if val]
@@ -209,10 +229,10 @@ def schedule_today(message):
 	if message.chat.id != config.creator_id: track(message)
 
 def parse_today(table):
-	try:
+	if len(table.worksheets()) != 1:
 		if isEven(): table = table.worksheet('Четная')
 		else: table = table.worksheet('Нечетная')
-	except: table = table.sheet1
+	else: table = table.sheet1
 	today = str(datetime.now().isoweekday()) # Сегодня
 	tomorrow = None
 	stud_days = [val for val in table.col_values(1) if val]
@@ -245,7 +265,6 @@ def odd_week(message):
 	msg = bot.send_message(message.chat.id, 'Выбери день', reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
 
-
 @bot.message_handler(func=lambda message: message.text == 'Неделя', content_types=['text'])
 def any_day(message):
 	markup = types.ReplyKeyboardMarkup(resize_keyboard = True)
@@ -254,7 +273,6 @@ def any_day(message):
 	markup.row('В меню')
 	msg = bot.send_message(message.chat.id, 'Выбери день', reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
-
 
 @bot.message_handler(func=lambda message: message.text in config.days, content_types=['text'])
 def days(message):
@@ -363,10 +381,14 @@ def get_individual_days(string):
 	return zipped, name
 
 def decline_name(name):
-	if name[-1] == 'а': name = name[:-1] + 'ой'
-	elif name[-1] == 'й': name = name[:-2] + 'ого'
-	elif name[-1] == 'ь': name = name[:-1] + 'я'
-	elif name[-1] == 'о': name = name
+	d = {
+		'а': 'ой',
+		'й': 'ого',
+		'ь': 'ой',
+		'о': 'о',
+	}
+	if name in d.keys():
+		name = name[:-1] + d[name[-1]]
 	else: name += 'а'
 	return name
 
@@ -437,6 +459,9 @@ def to_menu(message):
 	markup.row(config.main_queries[5])
 	markup.row(config.main_queries[6])
 	markup.row('Назад')
+	if message.chat.id in config.privileged_id:
+		markup.row('Сделать рассылку...')
+
 	bot.send_message(message.chat.id, 'Что хочешь знать?', reply_markup = markup)
 	if message.chat.id != config.creator_id: track(message)
 
@@ -510,7 +535,7 @@ def set_id(message):
 	if str(message.chat.id) not in id_list:
 		ind = len(id_list) + 2
 		base.update_acell('A'+str(ind), message.chat.id)
-		base.update_acell('D'+str(ind), message.chat.first_name +' '.join(message.chat.last_name))
+		base.update_acell('D'+str(ind), message.chat.first_name + ' ' + message.chat.last_name)
 
 def set_stud_course(message):
 	id_list = [val for val in base.col_values(1) if val][1:]
@@ -576,13 +601,6 @@ def clean_logs():
 	cell_list = logs.range('A2:F{0}'.format(i))
 	for cell in cell_list: cell.value = ''
 	logs.update_cells(cell_list)
-
-def update_news(msg):
-	users = get_users_id()
-	for user in users:
-		time.sleep(1)
-		try: bot.send_message(int(user), msg)
-		except: bot.send_message(config.creator_id, user + ' не получил уведомление')
 
 @server.route("/bot", methods=['POST'])
 def getMessage():

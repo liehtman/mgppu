@@ -5,15 +5,16 @@ import sys
 import gspread
 import time, threading
 import airbrake
+import httplib2
 import logging
-from flask import Flask, request
+from flask import Flask, request, abort
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, date, timedelta
 from datetime import time as d_time
 from telebot import types
 from student import Student
 
-bot = telebot.TeleBot(config.token, threaded = False)
+bot = telebot.TeleBot(config.token)
 server = Flask(__name__)
 scope = ['https://spreadsheets.google.com/feeds']
 credentials = ServiceAccountCredentials.from_json_keyfile_name(config.json_keyfile, scope)
@@ -23,10 +24,6 @@ logs = gc.open("Логи МГППУ").sheet1
 
 logger = telebot.logger
 telebot.logger.setLevel(logging.DEBUG)
-
-@bot.message_handler(commands = ['webhook'])
-def webhookinfo(message):
-	bot.send_message(config.creator_id, bot.getWebhookInfo())
 
 @bot.message_handler(commands = ['announce'])
 def announce(message):
@@ -393,7 +390,7 @@ def decline_name(name):
 	d = {
 		'а': 'ой',
 		'й': 'ого',
-		'ь': 'ой',
+		'ь': 'ь',
 		'о': 'о',
 	}
 	if name[-1] in d.keys():
@@ -560,11 +557,14 @@ def set_stud_spec(message):
 		base.update_acell('C'+str(ind), message.text.lower())
 
 def get_stud_info(message):
-	id_list = [val for val in base.col_values(1) if val][1:]
-	ind = id_list.index(str(message.chat.id)) + 2
-	course = base.acell('B'+str(ind)).value
-	spec = base.acell('C'+str(ind)).value
-	return course, spec
+	try:
+		id_list = [val for val in base.col_values(1) if val][1:]
+		ind = id_list.index(str(message.chat.id)) + 2
+		course = base.acell('B'+str(ind)).value
+		spec = base.acell('C'+str(ind)).value
+		return course, spec
+	except Exception as e:
+		print("\nGET STUD INFO EXCEPTION:\n",e,'\n')
 
 def get_users_id():
 	return [val for val in base.col_values(1)[1:] if val]
@@ -581,14 +581,15 @@ def track(message):
 	logs.update_cells(cell_list)
 
 def get_logs():
-	msg, i = '', 1
-	rows, row = [], True
-	while row:
-		i += 1
-		row = [val for val in logs.row_values(i) if val]		
-		rows.append(row)
-	for row in reversed(rows[-10:-1]):
-		string = '\[_{0}_] *{1} {2}*: {3} ({4})\n'.format(*row)
+	msg = ''
+	ID = [val for val in logs.col_values(1)[::-1][:-1] if val]
+	f_name = [val for val in logs.col_values(2)[::-1][:-1] if val]
+	l_name = [val for val in logs.col_values(3)[::-1][:-1] if val]
+	msgs = [val for val in logs.col_values(4)[::-1][:-1] if val]
+	times = [val for val in logs.col_values(5)[::-1][:-1] if val]
+	values = zip(ID, f_name, l_name, msgs, times)
+	for val in values:
+		string = '\[_{0}_] *{1} {2}*: {3} ({4})\n'.format(*val)
 		msg += string
 	return msg
 
@@ -603,26 +604,22 @@ def clean_logs():
 
 @server.route("/bot", methods = ['POST'])
 def getMessage():
+	gc = gspread.authorize(credentials)
+	if credentials.access_token_expired:
+		gc.login()
 	try:
 		new_updates = [telebot.types.Update.de_json(request.stream.read().decode("utf-8"))]
 		bot.process_new_updates(new_updates)
-		print('TEST MESSAGE: {0}'.format(new_updates))
 	except Exception as e:
-		print('!!!!!!!!!!!!!!!!!!!!!!!!! GET MESSAGE\n',e,'\n!!!!!!!!!!!!!!!!!!\n')
-	return "!", 200
+		# gspread.exceptions.HTTPError as e
+		print('\nGET MESSAGE EXCEPTION22:\n', e,'\n')
+	return "ok", 200
 
 @server.route("/")
 def webhook():
-	try:
-		bot.remove_webhook()
-		bot.set_webhook(url = "https://mgppu.herokuapp.com/bot")
-		return "!", 200
-	except Exception as e:
-		print('!!!!!!!!!!! WEBHOOK\n\n',e,'\n!!!!!!\n\n')
+	bot.remove_webhook()
+	bot.set_webhook(url = "https://mgppu.herokuapp.com/bot")
+	return "ok", 200
 
-if __name__ == '__main__':
-	try:
-		server.run(host = "0.0.0.0", port = os.environ.get('PORT', 5000))
-		server = Flask(__name__)
-	except Exception as e:
-		print('!!!!!!!!!!!\n\n MAIN',e,'\n!!!!!!\n\n')
+server.run(host = "0.0.0.0", port = os.environ.get('PORT', 5000))
+server = Flask(__name__)

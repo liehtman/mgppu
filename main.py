@@ -2,10 +2,9 @@ import os
 import telebot
 import config
 import sys
+import httplib2
 import gspread
 import time, threading
-import airbrake
-import httplib2
 import logging
 from flask import Flask, request, abort
 from oauth2client.service_account import ServiceAccountCredentials
@@ -16,8 +15,10 @@ from student import Student
 
 bot = telebot.TeleBot(config.token)
 server = Flask(__name__)
+
 scope = ['https://spreadsheets.google.com/feeds']
 credentials = ServiceAccountCredentials.from_json_keyfile_name(config.json_keyfile, scope)
+credentials.authorize(httplib2.Http())
 gc = gspread.authorize(credentials)
 base = gc.open("Студенты").sheet1
 logs = gc.open("Логи МГППУ").sheet1
@@ -136,20 +137,20 @@ def privileged_announce(message):
 	elif message.text == 'В меню':
 		to_menu(message)
 	else:
-		announce_4_mat = lambda message: sample_announce(message, 4, 'математики')
-		announce_4_inf = lambda message: sample_announce(message, 4, 'информатики')
+		announce_4_mat  = lambda message: sample_announce(message, 4, 'математики')
+		announce_4_inf  = lambda message: sample_announce(message, 4, 'информатики')
 		announce_4_prod = lambda message: sample_announce(message, 4, 'режиссеры')
-		announce_3_mat = lambda message: sample_announce(message, 3, 'математики')	
-		announce_3_inf = lambda message: sample_announce(message, 3, 'информатики')
+		announce_3_mat  = lambda message: sample_announce(message, 3, 'математики')	
+		announce_3_inf  = lambda message: sample_announce(message, 3, 'информатики')
 		announce_3_prod = lambda message: sample_announce(message, 3, 'режиссеры')
-		announce_2_mat = lambda message: sample_announce(message, 2, 'математики')
-		announce_2_inf = lambda message: sample_announce(message, 2, 'информатики')
+		announce_2_mat  = lambda message: sample_announce(message, 2, 'математики')
+		announce_2_inf  = lambda message: sample_announce(message, 2, 'информатики')
 		announce_2_prod = lambda message: sample_announce(message, 2, 'режиссеры')
-		announce_1_mat = lambda message: sample_announce(message, 1, 'математики')
-		announce_1_inf = lambda message: sample_announce(message, 1, 'информатики')
+		announce_1_mat  = lambda message: sample_announce(message, 1, 'математики')
+		announce_1_inf  = lambda message: sample_announce(message, 1, 'информатики')
 		announce_1_prod = lambda message: sample_announce(message, 1, 'режиссеры')
-		announce_1_mag = lambda message: sample_announce(message, 1, 'магистратура')
-		announce_2_mag = lambda message: sample_announce(message, 2, 'магистратура')
+		announce_1_mag  = lambda message: sample_announce(message, 1, 'магистратура')
+		announce_2_mag  = lambda message: sample_announce(message, 2, 'магистратура')
 
 		msg = bot.send_message(message.chat.id, "Введите сообщение, которое нужно разослать")
 		splitted_mes = message.text.split()
@@ -500,7 +501,6 @@ def whats_week(message):
 
 @bot.message_handler(func = lambda message: True, content_types = ['text'])
 def default(message):
-	# bot.send_message(message.chat.id, 'Используй кнопки')  # TODO: всегда срабатывает
 	if message.chat.id != config.creator_id: track(message)
 
 def parse_session(table, query):
@@ -538,6 +538,7 @@ def isEven(today = date.today() + timedelta(days = 1), first = config.first_date
 	else: return True  							# нечетная
 
 def set_id(message):
+	# verify_auth()
 	id_list = [val for val in base.col_values(1) if val][1:]
 	if str(message.chat.id) not in id_list:
 		ind = len(id_list) + 2
@@ -545,26 +546,25 @@ def set_id(message):
 		base.update_acell('D'+str(ind), message.chat.first_name + ' ' + message.chat.last_name)
 
 def set_stud_course(message):
+	# verify_auth()
 	id_list = [val for val in base.col_values(1) if val][1:]
 	if str(message.chat.id) in id_list:
 		ind = id_list.index(str(message.chat.id)) + 2
 		base.update_acell('B'+str(ind), message.text.split()[0])
 
 def set_stud_spec(message):
+	# verify_auth()
 	id_list = [val for val in base.col_values(1) if val][1:]
 	if str(message.chat.id) in id_list:
 		ind = id_list.index(str(message.chat.id)) + 2
 		base.update_acell('C'+str(ind), message.text.lower())
 
 def get_stud_info(message):
-	try:
-		id_list = [val for val in base.col_values(1) if val][1:]
-		ind = id_list.index(str(message.chat.id)) + 2
-		course = base.acell('B'+str(ind)).value
-		spec = base.acell('C'+str(ind)).value
-		return course, spec
-	except Exception as e:
-		print("\nGET STUD INFO EXCEPTION:\n",e,'\n')
+	id_list = [val for val in base.col_values(1) if val][1:]
+	ind = id_list.index(str(message.chat.id)) + 2
+	course = base.acell('B'+str(ind)).value
+	spec = base.acell('C'+str(ind)).value
+	return course, spec
 
 def get_users_id():
 	return [val for val in base.col_values(1)[1:] if val]
@@ -602,17 +602,14 @@ def clean_logs():
 	for cell in cell_list: cell.value = ''
 	logs.update_cells(cell_list)
 
-@server.route("/bot", methods = ['POST'])
+@server.route("/bot", methods = ['GET','POST'])
 def getMessage():
-	gc = gspread.authorize(credentials)
-	if credentials.access_token_expired:
-		gc.login()
 	try:
+		gc.login()
 		new_updates = [telebot.types.Update.de_json(request.stream.read().decode("utf-8"))]
 		bot.process_new_updates(new_updates)
-	except Exception as e:
-		# gspread.exceptions.HTTPError as e
-		print('\nGET MESSAGE EXCEPTION22:\n', e,'\n')
+	except:
+		bot.send_message(config.creator_id, 'Я сломался')
 	return "ok", 200
 
 @server.route("/")
@@ -620,6 +617,13 @@ def webhook():
 	bot.remove_webhook()
 	bot.set_webhook(url = "https://mgppu.herokuapp.com/bot")
 	return "ok", 200
+
+def verify_auth():
+	print('!!!!VERIFY!!!!')
+	credentials.refresh(httplib2.Http())
+	credentials.authorize(httplib2.Http())
+	gc = gspread.authorize(credentials)
+	gc.login()
 
 server.run(host = "0.0.0.0", port = os.environ.get('PORT', 5000))
 server = Flask(__name__)
